@@ -69,7 +69,7 @@ jobs:
         run: |
           # Read the entire content of wrangler.toml
           WRANGLER_CONTENT=$(cat wrangler.toml)
-          
+           
           # Update the KV namespace ID
           UPDATED_CONTENT=$(echo "$WRANGLER_CONTENT" | sed 's/id = "[^"]*"/id = "'$KV_ID'"/')
           
