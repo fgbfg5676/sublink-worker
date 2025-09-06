@@ -10,9 +10,9 @@
     "setup-kv": "node scripts/setup-kv.js"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.8.0",
-    "vitest": "^3.0.0 <3.1.0",
-    "wrangler": "latest"
+    "@cloudflare/vitest-pool-workers": "^0.8.8",
+    "vitest": "3.0.9",
+    "wrangler": "^4.34.0"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",
