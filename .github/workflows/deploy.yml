@@ -5,12 +5,11 @@ on:
   repository_dispatch:
   push:
     branches:
-      - main   # 如果你的默认分支是 master，请改成 master
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'   # 你要用 Node 22
+          node-version: '22'
 
       - name: Install pnpm
         run: npm install -g pnpm@10.11.1
@@ -26,29 +25,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Wrangler
-        run: npm install --save-dev wrangler@latest
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: Check and Create KV Namespace
         env:
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
           KV_NAMESPACE="SUBLINK_KV"
           echo "Checking for KV namespace: $KV_NAMESPACE"
-
-          LIST_OUTPUT=$(npx wrangler kv namespace list 2>&1 | grep -v "Cloudflare collects" | grep -v "telemetry")
+          LIST_OUTPUT=$(wrangler kv namespace list 2>&1 || true)
+          LIST_OUTPUT=$(echo "$LIST_OUTPUT" | grep -v "Cloudflare collects" | grep -v "telemetry")
           KV_ID=$(echo "$LIST_OUTPUT" | jq -r '.[] | select(.title == "sublink-worker-'$KV_NAMESPACE'") | .id')
-
+          
           if [ -z "$KV_ID" ]; then
-              echo "KV namespace does not exist. Creating..."
-              CREATE_OUTPUT=$(npx wrangler kv namespace create "sublink-worker-$KV_NAMESPACE" 2>&1)
+              echo "KV namespace $KV_NAMESPACE does not exist. Creating..."
+              CREATE_OUTPUT=$(wrangler kv namespace create "sublink-worker-$KV_NAMESPACE" 2>&1)
               KV_ID=$(echo "$CREATE_OUTPUT" | grep -o '[0-9a-f]\{32\}')
+              echo "KV namespace $KV_NAMESPACE created with ID: $KV_ID"
+          else
+              echo "KV namespace $KV_NAMESPACE already exists with ID: $KV_ID"
           fi
-
           echo "KV_ID=$KV_ID" >> $GITHUB_ENV
 
       - name: Update wrangler.toml
@@ -56,11 +51,11 @@ jobs:
           WRANGLER_CONTENT=$(cat wrangler.toml)
           UPDATED_CONTENT=$(echo "$WRANGLER_CONTENT" | sed 's/id = "[^"]*"/id = "'$KV_ID'"/')
           echo "$UPDATED_CONTENT" > wrangler.toml
-          echo "Updated wrangler.toml:"
+          echo "Updated wrangler.toml content:"
           cat wrangler.toml
 
       - name: Deploy to Cloudflare Workers
-        run: npx wrangler deploy
-        env:
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          command: deploy
